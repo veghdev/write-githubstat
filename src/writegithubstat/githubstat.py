@@ -2,9 +2,10 @@ from abc import ABC, abstractmethod
 import os
 from pathlib import Path
 import logging
-import requests
 from datetime import date
 from typing import Dict, Any, List, Union
+
+import requests
 import pandas as pd
 
 

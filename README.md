@@ -22,7 +22,7 @@ pip install write-githubstat
 import logging
 from pathlib import Path
 
-from githubstat import WriteGithubStat, GithubAuth, Referrers, Paths, StarsForks, ViewsClones
+from writegithubstat import WriteGithubStat, GithubAuth, Referrers, Paths, StarsForks, ViewsClones
 
 
 logging.basicConfig(level=logging.INFO)

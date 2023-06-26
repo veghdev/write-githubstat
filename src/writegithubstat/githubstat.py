@@ -114,7 +114,7 @@ class Paths(GithubStatType):
         return df
 
 
-class Stars(GithubStatType):
+class Cumulative(GithubStatType):
     @property
     def url(self):
         return f"https://api.github.com/repos/{self._auth.owner}/{self._auth.repo}"
@@ -125,12 +125,13 @@ class Stars(GithubStatType):
 
     @property
     def measures(self):
-        return ["stars_cumulative"]
+        return ["stars", "forks"]
 
     @staticmethod
     def process_stat(data):
         stars = data["stargazers_count"]
-        df = pd.DataFrame({"stars_cumulative": [stars]})
+        forks = data["forks_count"]
+        df = pd.DataFrame({"stars": [stars], "forks": [forks]})
         return df
 
 

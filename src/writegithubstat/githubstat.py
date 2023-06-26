@@ -13,7 +13,6 @@ class GithubAuth:
         self._owner = owner
         self._repo = repo
         self._header = GithubAuth._get_auth_header(token)
-        self._repo_id = GithubAuth._get_repo_id(self._owner, self._repo, self._header)
 
     @staticmethod
     def _get_auth_header(token: str) -> dict:
@@ -22,18 +21,6 @@ class GithubAuth:
             "Accept": "application/vnd.github.spiderman-preview+json",
         }
         return auth_header
-
-    @staticmethod
-    def _get_repo_id(owner: str, repo: str, auth_header: str) -> str:
-        url = f"https://api.github.com/repos/{owner}/{repo}"
-        response = requests.get(url, headers=auth_header)
-        if response.status_code == 200:
-            repository = response.json()
-            return repository["id"]
-        else:
-            raise requests.HTTPError(
-                f"Request failed with status code {response.status_code}: {response.text}"
-            )
 
     @property
     def owner(self) -> str:
@@ -44,21 +31,18 @@ class GithubAuth:
         return self._repo
 
     @property
-    def repo_id(self) -> str:
-        return self._repo_id
-
-    @property
     def header(self) -> dict:
         return self._header
 
 
 class GithubStatType(ABC):
-    def __init__(self, auth: GithubAuth) -> None:
-        self._auth = auth
+    def __init__(self, owner: str, repo: str) -> None:
+        self._owner = owner
+        self._repo = repo
 
     @property
     @abstractmethod
-    def url(self):
+    def urls(self):
         pass
 
     @property
@@ -72,14 +56,16 @@ class GithubStatType(ABC):
         pass
 
     @staticmethod
-    def process_stat(data):
+    def process_stat(responses):
         pass
 
 
 class Referrers(GithubStatType):
     @property
-    def url(self):
-        return f"https://api.github.com/repositories/{self._auth.repo_id}/traffic/popular/referrers"
+    def urls(self):
+        return [
+            f"https://api.github.com/repos/{self._owner}/{self._repo}/traffic/popular/referrers"
+        ]
 
     @property
     def dimensions(self):
@@ -90,15 +76,18 @@ class Referrers(GithubStatType):
         return ["count", "uniques"]
 
     @staticmethod
-    def process_stat(data):
+    def process_stat(responses):
+        data = responses[0]
         df = pd.DataFrame(data)
         return df
 
 
 class Paths(GithubStatType):
     @property
-    def url(self):
-        return f"https://api.github.com/repositories/{self._auth.repo_id}/traffic/popular/paths"
+    def urls(self):
+        return [
+            f"https://api.github.com/repos/{self._owner}/{self._repo}/traffic/popular/paths"
+        ]
 
     @property
     def dimensions(self):
@@ -109,15 +98,16 @@ class Paths(GithubStatType):
         return ["count", "uniques"]
 
     @staticmethod
-    def process_stat(data):
+    def process_stat(responses):
+        data = responses[0]
         df = pd.DataFrame(data)
         return df
 
 
-class Cumulative(GithubStatType):
+class StarsForks(GithubStatType):
     @property
-    def url(self):
-        return f"https://api.github.com/repos/{self._auth.owner}/{self._auth.repo}"
+    def urls(self):
+        return [f"https://api.github.com/repos/{self._owner}/{self._repo}"]
 
     @property
     def dimensions(self):
@@ -128,23 +118,58 @@ class Cumulative(GithubStatType):
         return ["stars", "forks"]
 
     @staticmethod
-    def process_stat(data):
+    def process_stat(responses):
+        data = responses[0]
         stars = data["stargazers_count"]
         forks = data["forks_count"]
         df = pd.DataFrame({"stars": [stars], "forks": [forks]})
         return df
 
 
+class ViewsClones(GithubStatType):
+    @property
+    def urls(self):
+        return [
+            f"https://api.github.com/repos/{self._owner}/{self._repo}/traffic/views",
+            f"https://api.github.com/repos/{self._owner}/{self._repo}/traffic/clones",
+        ]
+
+    @property
+    def dimensions(self):
+        return []
+
+    @property
+    def measures(self):
+        return []
+
+    @staticmethod
+    def process_stat(responses):
+        views = responses[0]["views"][-1]
+        clones = responses[1]["clones"][-1]
+        df = pd.DataFrame(
+            {
+                "views_total": [views["count"]],
+                "views_unique": [views["uniques"]],
+                "clones_total": [clones["count"]],
+                "clones_unique": [clones["uniques"]],
+            }
+        )
+        return df
+
+
 class _GithubStat:
     @staticmethod
     def _get_stat(stat_type: GithubStatType, auth_header: dict) -> pd.DataFrame:
-        response = requests.get(stat_type.url, headers=auth_header)
-        if response.status_code == 200:
-            return stat_type.process_stat(response.json())
-        else:
-            raise requests.HTTPError(
-                f"Request failed with status code {response.status_code}: {response.text}"
-            )
+        responses = []
+        for url in stat_type.urls:
+            response = requests.get(url, headers=auth_header)
+            if response.status_code == 200:
+                responses.append(response.json())
+            else:
+                raise requests.HTTPError(
+                    f"Request failed with status code {response.status_code}: {response.text}"
+                )
+        return stat_type.process_stat(responses)
 
 
 class WriteGithubStat:

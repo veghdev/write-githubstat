@@ -4,7 +4,7 @@ from pathlib import Path
 import logging
 import requests
 from datetime import date
-
+from typing import Dict, Any, List, Union
 import pandas as pd
 
 
@@ -15,7 +15,7 @@ class GithubAuth:
         self._header = self._get_auth_header(token)
 
     @staticmethod
-    def _get_auth_header(token: str) -> dict:
+    def _get_auth_header(token: str) -> Dict[str, str]:
         auth_header = {
             "Authorization": f"token {token}",
             "Accept": "application/vnd.github.spiderman-preview+json",
@@ -31,7 +31,7 @@ class GithubAuth:
         return self._repo
 
     @property
-    def header(self) -> dict:
+    def header(self) -> Dict[str, str]:
         return self._header
 
 
@@ -42,40 +42,40 @@ class GithubStatType(ABC):
 
     @property
     @abstractmethod
-    def urls(self):
+    def urls(self) -> List[str]:
         pass
 
     @property
     @abstractmethod
-    def dimensions(self):
+    def dimensions(self) -> List[str]:
         pass
 
     @property
     @abstractmethod
-    def measures(self):
+    def measures(self) -> List[str]:
         pass
 
     @abstractmethod
-    def process_stat(self, responses):
+    def process_stat(self, responses: List[Dict[str, Any]]) -> pd.DataFrame:
         pass
 
 
 class Referrers(GithubStatType):
     @property
-    def urls(self):
+    def urls(self) -> List[str]:
         return [
             f"https://api.github.com/repos/{self._owner}/{self._repo}/traffic/popular/referrers"
         ]
 
     @property
-    def dimensions(self):
+    def dimensions(self) -> List[str]:
         return ["referrer"]
 
     @property
-    def measures(self):
+    def measures(self) -> List[str]:
         return ["count", "uniques"]
 
-    def process_stat(self, responses):
+    def process_stat(self, responses: List[Dict[str, Any]]) -> pd.DataFrame:
         data = responses[0]
         df = pd.DataFrame(data)
         return df
@@ -83,20 +83,20 @@ class Referrers(GithubStatType):
 
 class Paths(GithubStatType):
     @property
-    def urls(self):
+    def urls(self) -> List[str]:
         return [
             f"https://api.github.com/repos/{self._owner}/{self._repo}/traffic/popular/paths"
         ]
 
     @property
-    def dimensions(self):
+    def dimensions(self) -> List[str]:
         return ["path", "title"]
 
     @property
-    def measures(self):
+    def measures(self) -> List[str]:
         return ["count", "uniques"]
 
-    def process_stat(self, responses):
+    def process_stat(self, responses: List[Dict[str, Any]]) -> pd.DataFrame:
         data = responses[0]
         df = pd.DataFrame(data)
         return df
@@ -104,18 +104,18 @@ class Paths(GithubStatType):
 
 class StarsForks(GithubStatType):
     @property
-    def urls(self):
+    def urls(self) -> List[str]:
         return [f"https://api.github.com/repos/{self._owner}/{self._repo}"]
 
     @property
-    def dimensions(self):
+    def dimensions(self) -> List[str]:
         return []
 
     @property
-    def measures(self):
+    def measures(self) -> List[str]:
         return ["stars", "forks"]
 
-    def process_stat(self, responses):
+    def process_stat(self, responses: List[Dict[str, Any]]) -> pd.DataFrame:
         data = responses[0]
         stars = data["stargazers_count"]
         forks = data["forks_count"]
@@ -129,23 +129,23 @@ class ViewsClones(GithubStatType):
         self._date = date
 
     @property
-    def urls(self):
+    def urls(self) -> List[str]:
         return [
             f"https://api.github.com/repos/{self._owner}/{self._repo}/traffic/views",
             f"https://api.github.com/repos/{self._owner}/{self._repo}/traffic/clones",
         ]
 
     @property
-    def dimensions(self):
+    def dimensions(self) -> List[str]:
         return []
 
     @property
-    def measures(self):
-        return ["views_total", "views_unique", "clones_total", "clones_total"]
+    def measures(self) -> List[str]:
+        return ["views_total", "views_unique", "clones_total", "clones_unique"]
 
-    def process_stat(self, responses):
+    def process_stat(self, responses: List[Dict[str, Any]]) -> pd.DataFrame:
         views = self._get_actual_stat(responses[0], "views")
-        clones = self._get_actual_stat(responses[0], "clones")
+        clones = self._get_actual_stat(responses[1], "clones")
         df = pd.DataFrame(
             {
                 "views_total": [views["count"]],
@@ -156,7 +156,9 @@ class ViewsClones(GithubStatType):
         )
         return df
 
-    def _get_actual_stat(self, data, name):
+    def _get_actual_stat(
+        self, data: Dict[str, Any], name: str
+    ) -> Dict[str, Union[int, str]]:
         try:
             stat = data[name][-1]
             if not stat["timestamp"].startswith(self._date):
@@ -170,16 +172,14 @@ class ViewsClones(GithubStatType):
 
 class GithubStatAPI:
     @staticmethod
-    def get_stat(stat_type: GithubStatType, auth_header: dict) -> pd.DataFrame:
+    def get_stat(
+        stat_type: GithubStatType, auth_header: Dict[str, str]
+    ) -> pd.DataFrame:
         responses = []
         for url in stat_type.urls:
             response = requests.get(url, headers=auth_header)
-            if response.status_code == 200:
-                responses.append(response.json())
-            else:
-                raise requests.HTTPError(
-                    f"Request failed with status code {response.status_code}: {response.text}"
-                )
+            response.raise_for_status()
+            responses.append(response.json())
         return stat_type.process_stat(responses)
 
 
@@ -216,7 +216,7 @@ class WriteGithubStat:
         df.insert(2, "repo", self._auth.repo)
         return df
 
-    def _get_stored_stats(self, path: str) -> pd.DataFrame:
+    def _get_stored_stats(self, path: Union[str, Path]) -> pd.DataFrame:
         try:
             df = pd.read_csv(path)
             return df

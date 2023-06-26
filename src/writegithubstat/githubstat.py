@@ -12,7 +12,7 @@ class GithubAuth:
     def __init__(self, owner: str, repo: str, token: str) -> None:
         self._owner = owner
         self._repo = repo
-        self._header = GithubAuth._get_auth_header(token)
+        self._header = self._get_auth_header(token)
 
     @staticmethod
     def _get_auth_header(token: str) -> dict:
@@ -55,8 +55,8 @@ class GithubStatType(ABC):
     def measures(self):
         pass
 
-    @staticmethod
-    def process_stat(responses):
+    @abstractmethod
+    def process_stat(self, responses):
         pass
 
 
@@ -75,8 +75,7 @@ class Referrers(GithubStatType):
     def measures(self):
         return ["count", "uniques"]
 
-    @staticmethod
-    def process_stat(responses):
+    def process_stat(self, responses):
         data = responses[0]
         df = pd.DataFrame(data)
         return df
@@ -97,8 +96,7 @@ class Paths(GithubStatType):
     def measures(self):
         return ["count", "uniques"]
 
-    @staticmethod
-    def process_stat(responses):
+    def process_stat(self, responses):
         data = responses[0]
         df = pd.DataFrame(data)
         return df
@@ -117,8 +115,7 @@ class StarsForks(GithubStatType):
     def measures(self):
         return ["stars", "forks"]
 
-    @staticmethod
-    def process_stat(responses):
+    def process_stat(self, responses):
         data = responses[0]
         stars = data["stargazers_count"]
         forks = data["forks_count"]
@@ -127,6 +124,10 @@ class StarsForks(GithubStatType):
 
 
 class ViewsClones(GithubStatType):
+    def __init__(self, owner: str, repo: str, date: str) -> None:
+        super().__init__(owner, repo)
+        self._date = date
+
     @property
     def urls(self):
         return [
@@ -140,12 +141,11 @@ class ViewsClones(GithubStatType):
 
     @property
     def measures(self):
-        return []
+        return ["views_total", "views_unique", "clones_total", "clones_total"]
 
-    @staticmethod
-    def process_stat(responses):
-        views = responses[0]["views"][-1]
-        clones = responses[1]["clones"][-1]
+    def process_stat(self, responses):
+        views = self._get_actual_stat(responses[0], "views")
+        clones = self._get_actual_stat(responses[0], "clones")
         df = pd.DataFrame(
             {
                 "views_total": [views["count"]],
@@ -156,10 +156,21 @@ class ViewsClones(GithubStatType):
         )
         return df
 
+    def _get_actual_stat(self, data, name):
+        try:
+            stat = data[name][-1]
+            if not stat["timestamp"].startswith(self._date):
+                raise ValueError(
+                    f"The views data for the date {self._date} is not available."
+                )
+            return stat
+        except (KeyError, IndexError, ValueError):
+            return {"count": 0, "uniques": 0}
 
-class _GithubStat:
+
+class GithubStatAPI:
     @staticmethod
-    def _get_stat(stat_type: GithubStatType, auth_header: dict) -> pd.DataFrame:
+    def get_stat(stat_type: GithubStatType, auth_header: dict) -> pd.DataFrame:
         responses = []
         for url in stat_type.urls:
             response = requests.get(url, headers=auth_header)
@@ -190,11 +201,10 @@ class WriteGithubStat:
         merged_stats.to_csv(csv, index=False)
 
     def _get_stats(self, stat_type: GithubStatType) -> pd.DataFrame:
-        stat = _GithubStat._get_stat(stat_type, self._auth.header)
+        stat = GithubStatAPI.get_stat(stat_type, self._auth.header)
         if stat.empty:
-            empty = {
-                **{col: "-" for col in stat_type.dimensions},
-                **{col: 0 for col in stat_type.measures},
+            empty = {col: "-" for col in stat_type.dimensions} | {
+                col: 0 for col in stat_type.measures
             }
             stat = pd.DataFrame([empty])
         stat = self._insert_metadata(stat)

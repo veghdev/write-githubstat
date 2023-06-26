@@ -1,7 +1,7 @@
 # write-githubstat
 write-githubstat makes it easy to collect, filter and save github statistics to csv files.
 
-[![PyPI version](https://badge.fury.io/py/write-condastat.svg)](https://badge.fury.io/py/write-githubstat)
+[![PyPI version](https://badge.fury.io/py/write-githubstat.svg)](https://badge.fury.io/py/write-githubstat)
 
 
 # About The Project

@@ -7,7 +7,7 @@ name = "write-githubstat"
 packages = [
     { include = "writegithubstat", from = "src" },
 ]
-version = "0.1.1"
+version = "0.1.2"
 readme = "README.md"
 description = "write-githubstat makes it easy to collect, filter and save github statistics to csv files."
 license = "Apache 2.0"

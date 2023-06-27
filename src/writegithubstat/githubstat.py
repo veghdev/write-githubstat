@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 import os
 from pathlib import Path
 import logging
-from datetime import date
+from datetime import date, timedelta
 from typing import Dict, Any, List, Union
 
 import requests
@@ -186,7 +186,7 @@ class GithubStatAPI:
 
 class WriteGithubStat:
     def __init__(self, auth: GithubAuth) -> None:
-        self._date = date.today().strftime("%Y-%m-%d")
+        self._date = (date.today() - timedelta(days=1)).strftime("%Y-%m-%d")
         self._auth = auth
 
     @property

@@ -91,7 +91,7 @@ class Paths(GithubStatType):
 
     @property
     def dimensions(self) -> List[str]:
-        return ["path", "title"]
+        return ["path"]
 
     @property
     def measures(self) -> List[str]:
@@ -100,6 +100,7 @@ class Paths(GithubStatType):
     def process_stat(self, responses: List[Dict[str, Any]]) -> pd.DataFrame:
         data = responses[0]
         df = pd.DataFrame(data)
+        df = df.drop("title", axis=1)
         return df
 
 

@@ -197,10 +197,17 @@ class WriteGithubStat:
     def write_stat(self, stat_type: GithubStatType, csv: Path) -> None:
         os.makedirs(csv.parent, exist_ok=True)
         stats = self._get_stats(stat_type)
-        logging.info(stats)
+        WriteGithubStat._log_df(stats)
         stored_stats = self._get_stored_stats(csv)
         merged_stats = self._merge_stats(stored_stats, stats)
         merged_stats.to_csv(csv, index=False)
+
+    @staticmethod
+    def _log_df(df) -> None:
+        with pd.option_context('display.max_columns', None,
+                               'display.max_rows', None,
+                               'display.width', None):
+            logging.info(df)
 
     def _get_stats(self, stat_type: GithubStatType) -> pd.DataFrame:
         stat = GithubStatAPI.get_stat(stat_type, self._auth.header)

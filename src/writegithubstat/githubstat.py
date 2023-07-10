@@ -162,12 +162,12 @@ class ViewsClones(GithubStatType):
         self, data: Dict[str, Any], name: str
     ) -> Dict[str, Union[int, str]]:
         try:
-            stat = data[name][-1]
-            if not stat["timestamp"].startswith(self._date):
-                raise ValueError(
-                    f"The views data for the date {self._date} is not available."
-                )
-            return stat
+            for stat in data[name]:
+                if stat["timestamp"].startswith(self._date):
+                    return stat
+            raise ValueError(
+                f"The views data for the date {self._date} is not available."
+            )
         except (KeyError, IndexError, ValueError):
             return {"count": 0, "uniques": 0}
 

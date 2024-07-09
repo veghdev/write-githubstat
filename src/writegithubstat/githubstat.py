@@ -100,7 +100,8 @@ class Paths(GithubStatType):
     def process_stat(self, responses: List[Dict[str, Any]]) -> pd.DataFrame:
         data = responses[0]
         df = pd.DataFrame(data)
-        df = df.drop("title", axis=1)
+        if "title" in df.columns:
+            df = df.drop("title", axis=1)
         return df
 
 
